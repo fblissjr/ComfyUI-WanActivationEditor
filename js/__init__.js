@@ -1,0 +1,1 @@
+// This file ensures the web directory is recognized by ComfyUI

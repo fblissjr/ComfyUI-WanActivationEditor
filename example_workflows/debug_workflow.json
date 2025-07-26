@@ -1,0 +1,610 @@
+{
+  "id": "36dd1b68-a980-4965-8894-a12ccbaea2bb",
+  "revision": 0,
+  "last_node_id": 10,
+  "last_link_id": 15,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "WanVideoTextEncode",
+      "pos": [
+        100,
+        350
+      ],
+      "size": [
+        400,
+        210
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "t5",
+          "shape": 7,
+          "type": "WANTEXTENCODER",
+          "link": null
+        },
+        {
+          "name": "model_to_offload",
+          "shape": 7,
+          "type": "WANVIDEOMODEL",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text_embeds",
+          "type": "WANVIDEOTEXTEMBEDS",
+          "slot_index": 0,
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WanVideoWrapper",
+        "ver": "bc68d35e5a4567dcf504827d224e898c0d592b42",
+        "Node name for S&R": "WanVideoTextEncode",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "Liquid metal flowing like water",
+        "",
+        true,
+        false
+      ]
+    },
+    {
+      "id": 4,
+      "type": "WanVideoActivationEditor",
+      "pos": [
+        550,
+        100
+      ],
+      "size": [
+        350,
+        250
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "WANVIDEOMODEL",
+          "link": null
+        },
+        {
+          "name": "text_embeds",
+          "type": "WANVIDEOTEXTEMBEDS",
+          "link": 1
+        },
+        {
+          "name": "injection_embeds",
+          "shape": 7,
+          "type": "WANVIDEOTEXTEMBEDS",
+          "link": 3
+        },
+        {
+          "name": "activation_pattern",
+          "type": "WAN_ACTIVATION",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "WANVIDEOMODEL",
+          "slot_index": 0,
+          "links": [
+            5,
+            8
+          ]
+        },
+        {
+          "name": "text_embeds",
+          "type": "WANVIDEOTEXTEMBEDS",
+          "slot_index": 1,
+          "links": [
+            6,
+            9,
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "fblissjr/ComfyUI-WanActivationEditor",
+        "ver": "e0edb103778843d246d63d1b82c759a4cccbc99f",
+        "Node name for S&R": "WanVideoActivationEditor",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        0.5,
+        true,
+        false
+      ]
+    },
+    {
+      "id": 5,
+      "type": "WanVideoActivationDebugger",
+      "pos": [
+        950,
+        100
+      ],
+      "size": [
+        400,
+        350
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 5
+        },
+        {
+          "name": "text_embeds",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "baseline_embeds",
+          "shape": 7,
+          "type": "CONDITIONING",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            7
+          ]
+        },
+        {
+          "name": "text_embeds",
+          "type": "CONDITIONING",
+          "slot_index": 1,
+          "links": [
+            10
+          ]
+        },
+        {
+          "name": "debug_report",
+          "type": "STRING",
+          "slot_index": 2,
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "fblissjr/ComfyUI-WanActivationEditor",
+        "ver": "e0edb103778843d246d63d1b82c759a4cccbc99f",
+        "Node name for S&R": "WanVideoActivationDebugger",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "detailed",
+        true,
+        true,
+        "0,10,20,30,39"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "WanVideoActivationValidator",
+      "pos": [
+        950,
+        500
+      ],
+      "size": [
+        400,
+        250
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 8
+        },
+        {
+          "name": "text_embeds",
+          "type": "CONDITIONING",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": null
+        },
+        {
+          "name": "text_embeds",
+          "type": "CONDITIONING",
+          "slot_index": 1,
+          "links": null
+        },
+        {
+          "name": "is_valid",
+          "type": "BOOLEAN",
+          "slot_index": 2,
+          "links": null
+        },
+        {
+          "name": "validation_report",
+          "type": "STRING",
+          "slot_index": 3,
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "fblissjr/ComfyUI-WanActivationEditor",
+        "ver": "e0edb103778843d246d63d1b82c759a4cccbc99f",
+        "Node name for S&R": "WanVideoActivationValidator",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "thorough",
+        0.5
+      ]
+    },
+    {
+      "id": 7,
+      "type": "WanVideoEmbeddingInspector",
+      "pos": [
+        950,
+        800
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "embeddings",
+          "type": "CONDITIONING",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "embeddings",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": null
+        },
+        {
+          "name": "inspection_report",
+          "type": "STRING",
+          "slot_index": 1,
+          "links": null
+        },
+        {
+          "name": "heatmap",
+          "type": "IMAGE",
+          "slot_index": 2,
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "fblissjr/ComfyUI-WanActivationEditor",
+        "ver": "e0edb103778843d246d63d1b82c759a4cccbc99f",
+        "Node name for S&R": "WanVideoEmbeddingInspector",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "0-10",
+        true,
+        true
+      ]
+    },
+    {
+      "id": 8,
+      "type": "WanVideoBlockMonitor",
+      "pos": [
+        550,
+        400
+      ],
+      "size": [
+        350,
+        150
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": null
+        },
+        {
+          "name": "monitor_config",
+          "type": "STRING",
+          "slot_index": 1,
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "fblissjr/ComfyUI-WanActivationEditor",
+        "ver": "e0edb103778843d246d63d1b82c759a4cccbc99f",
+        "Node name for S&R": "WanVideoBlockMonitor",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "0,10,20,30,39",
+        1
+      ]
+    },
+    {
+      "id": 1,
+      "type": "WanVideoTextEncode",
+      "pos": [
+        26.19819450378418,
+        -13.009001731872559
+      ],
+      "size": [
+        400,
+        210
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "t5",
+          "shape": 7,
+          "type": "WANTEXTENCODER",
+          "link": null
+        },
+        {
+          "name": "model_to_offload",
+          "shape": 7,
+          "type": "WANVIDEOMODEL",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text_embeds",
+          "type": "WANVIDEOTEXTEMBEDS",
+          "slot_index": 0,
+          "links": [
+            1,
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-WanVideoWrapper",
+        "ver": "bc68d35e5a4567dcf504827d224e898c0d592b42",
+        "Node name for S&R": "WanVideoTextEncode",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "A serene mountain landscape with snow-capped peaks",
+        "",
+        true,
+        false
+      ]
+    },
+    {
+      "id": 3,
+      "type": "WanVideoBlockActivationBuilder",
+      "pos": [
+        100,
+        600
+      ],
+      "size": [
+        400,
+        1018
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "block_activations",
+          "type": "STRING",
+          "slot_index": 0,
+          "links": [
+            4
+          ]
+        }
+      ],
+      "title": "Block Activation Builder (20 active)",
+      "properties": {
+        "aux_id": "fblissjr/ComfyUI-WanActivationEditor",
+        "ver": "e0edb103778843d246d63d1b82c759a4cccbc99f",
+        "Node name for S&R": "WanVideoBlockActivationBuilder",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "second_half",
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      4,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      2,
+      1,
+      0,
+      5,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      3,
+      2,
+      0,
+      4,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      4,
+      3,
+      0,
+      4,
+      3,
+      "WAN_ACTIVATION"
+    ],
+    [
+      5,
+      4,
+      0,
+      5,
+      0,
+      "MODEL"
+    ],
+    [
+      6,
+      4,
+      1,
+      5,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      7,
+      5,
+      0,
+      8,
+      0,
+      "MODEL"
+    ],
+    [
+      8,
+      4,
+      0,
+      6,
+      0,
+      "MODEL"
+    ],
+    [
+      9,
+      4,
+      1,
+      6,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      10,
+      5,
+      1,
+      null,
+      null,
+      "CONDITIONING"
+    ],
+    [
+      11,
+      4,
+      1,
+      7,
+      0,
+      "CONDITIONING"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Debug Workflow",
+      "bounding": [
+        50,
+        20,
+        1350,
+        1050
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "ds": {
+      "scale": 0.8671875,
+      "offset": [
+        330.7117117117115,
+        164.43243243243228
+      ]
+    },
+    "frontendVersion": "1.23.4",
+    "VHS_latentpreview": true,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

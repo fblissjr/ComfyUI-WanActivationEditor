@@ -1,13 +1,30 @@
-from .nodes import WanVideoActivationEditor, WanVideoBlockActivationBuilder, WanVideoActivationScheduler
+# ComfyUI-WanActivationEditor
 
-NODE_CLASS_MAPPINGS = {
-    "WanVideoActivationEditor": WanVideoActivationEditor,
-    "WanVideoBlockActivationBuilder": WanVideoBlockActivationBuilder,
-    "WanVideoActivationScheduler": WanVideoActivationScheduler,
+print("[WanActivationEditor] Loading __init__.py")
+
+from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+from .vector_ops import VECTOR_NODE_CLASS_MAPPINGS, VECTOR_NODE_DISPLAY_NAME_MAPPINGS
+from .alternative_nodes import ALTERNATIVE_NODE_CLASS_MAPPINGS, ALTERNATIVE_NODE_DISPLAY_NAME_MAPPINGS
+from .block_strength_nodes import NODE_CLASS_MAPPINGS as STRENGTH_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as STRENGTH_NODE_DISPLAY_NAME_MAPPINGS
+
+# Merge all node mappings
+ALL_NODE_CLASS_MAPPINGS = {
+    **NODE_CLASS_MAPPINGS,
+    **VECTOR_NODE_CLASS_MAPPINGS,
+    **ALTERNATIVE_NODE_CLASS_MAPPINGS,
+    **STRENGTH_NODE_CLASS_MAPPINGS,
+}
+ALL_NODE_DISPLAY_NAME_MAPPINGS = {
+    **NODE_DISPLAY_NAME_MAPPINGS,
+    **VECTOR_NODE_DISPLAY_NAME_MAPPINGS,
+    **ALTERNATIVE_NODE_DISPLAY_NAME_MAPPINGS,
+    **STRENGTH_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "WanVideoActivationEditor": "WanVideo Activation Editor",
-    "WanVideoBlockActivationBuilder": "WanVideo Block Activation Builder", 
-    "WanVideoActivationScheduler": "WanVideo Activation Scheduler",
-}
+# Export for ComfyUI
+NODE_CLASS_MAPPINGS = ALL_NODE_CLASS_MAPPINGS
+NODE_DISPLAY_NAME_MAPPINGS = ALL_NODE_DISPLAY_NAME_MAPPINGS
+
+WEB_DIRECTORY = "./js"
+
+__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', WEB_DIRECTORY]
