@@ -58,8 +58,9 @@ Now the real fun begins - help us discover what each block does!
 
 ## Example Workflows
 
-Three workflows included:
+Four workflows included:
 - **`simple_activation.json`** - Minimal setup to get started with basic injection
+- **`amplified_injection.json`** - Shows how to use the Embedding Amplifier for better results
 - **`features_showcase.json`** - Demonstrates all features: vector ops, strength patterns, database
 - **`debug_workflow.json`** - Full debugging setup for troubleshooting and analysis
 
@@ -75,6 +76,10 @@ Three workflows included:
 - Optional pre-projection through text embedding layer for better performance
 - Built-in debug output shows patching status and active blocks
 - Log level control (off/basic/verbose/trace) for debugging
+- **NEW**: Injection mode selection:
+  - `context`: Inject into cross-attention context (default, proven to work)
+  - `hidden_states`: Inject into block hidden states (experimental)
+  - `both`: Inject into both context and hidden states
 
 **WanVideoBlockActivationBuilder** - Visual pattern builder with presets
 - Interactive UI for selecting which blocks to activate
@@ -92,6 +97,18 @@ Three workflows included:
 - Visual block pattern display (connect block_activations output to see pattern)
 - Verify injection is working correctly
 - Pattern analysis (detects common patterns)
+
+**WanVideoInjectionTester** - Test injection effectiveness
+- Analyzes embedding differences between main and injection prompts
+- Shows which dimensions differ most
+- Warns if prompts are too similar for effective injection
+- Helps debug why injection might not be working
+
+**WanVideoEmbeddingAmplifier** - Simple solution for low embedding differences
+- Automatically amplifies differences between embeddings to target percentage
+- Three modes: push_apart (gentle), maximize_diff (aggressive), orthogonalize (mathematical)
+- Default target of 60% difference ensures visible effects
+- Preserves embedding structure while increasing contrast
 
 ### Advanced Strength Control
 
@@ -133,12 +150,13 @@ My professional experience is based on a data background over 20 years (and LLMs
 1. **Memory**: Auto CPU offload, garbage collection, 3-4x compression
 2. **Dimensions**: Auto shape alignment, smart padding, pre-projection when possible
 3. **Database**: DuckDB tracks embeddings, operations, performance metrics
-4. **Debug**: Built-in console output shows patching status. For verbose mode:
-
-```bash
-export WAN_ACTIVATION_DEBUG=1
-export WAN_ACTIVATION_VERBOSE=1
-```
+4. **Debug**: Console output is off by default. To enable logging:
+   - Easy: Set "Log Level" dropdown to "basic" or "verbose" in WanVideoActivationEditor node
+   - Or use environment variables:
+   ```bash
+   export WAN_ACTIVATION_DEBUG=1    # Basic output
+   export WAN_ACTIVATION_VERBOSE=1  # Detailed output
+   ```
 
 ## (Potentially) Best Practices, But Who Knows?
 
@@ -153,12 +171,24 @@ export WAN_ACTIVATION_VERBOSE=1
 - Progressive morph: Linear gradient 0→1 across blocks
 - Hybrid concepts: "wolf" + "liquid mercury" = metallic flowing wolf
 
+## The Simple Solution: Embedding Amplifier
+
+If your prompts aren't different enough (common with FP8 quantization), use the **WanVideoEmbeddingAmplifier** node:
+
+1. Connect your main prompt embeddings
+2. Connect your injection prompt embeddings to the amplifier
+3. Set target difference to 60% (default)
+4. Use the amplified output as your injection embeddings
+
+This ensures your embeddings are different enough for visible effects, even with similar prompts!
+
 ## Troubleshooting
 
 Check console output for "Percent changed" - needs to be >50% for visible effects!
 
 Common issues:
-- **Prompts too similar** → Use opposites: "photo" vs "oil painting"
+- **Low embedding difference (<30%)** → Use the Embedding Amplifier node!
+- **No visible effect** → Increase strength or use more different prompts (aim for >50% difference)
 - **No blocks found** → Update WanVideoWrapper (or I need to update this repo to match WanVideoWrapper's changes)
 - **Dimension mismatch** → Handled automatically
 

@@ -142,8 +142,16 @@ class WanVideoVectorDifference:
         # Ensure compatible shapes
         if tensor_a.shape != tensor_b.shape:
             print(f"[VectorDifference] Shape mismatch: {tensor_a.shape} vs {tensor_b.shape}")
+            
+            # Check for dimension size mismatch
+            if (tensor_a.shape[-1] == 4096 and tensor_b.shape[-1] == 5120) or \
+               (tensor_a.shape[-1] == 5120 and tensor_b.shape[-1] == 4096):
+                print("[VectorDifference] WARNING: Mixing raw T5 embeddings (4096) with processed embeddings (5120)")
+                print("[VectorDifference] This may produce unexpected results. Consider using matching embedding types.")
+            
             # Pad or truncate to match
             tensor_a, tensor_b = self._align_tensors(tensor_a, tensor_b)
+            print(f"[VectorDifference] Aligned shapes: {tensor_a.shape} and {tensor_b.shape}")
         
         # Compute difference
         with torch.no_grad():
@@ -186,6 +194,14 @@ class WanVideoVectorDifference:
     
     def _align_tensors(self, tensor_a, tensor_b):
         """Align tensor shapes by padding or truncating."""
+        # Handle dimension mismatch
+        if tensor_a.ndim != tensor_b.ndim:
+            # Convert 2D to 3D if needed by adding batch dimension
+            if tensor_a.ndim == 2 and tensor_b.ndim == 3:
+                tensor_a = tensor_a.unsqueeze(0)  # Add batch dimension
+            elif tensor_a.ndim == 3 and tensor_b.ndim == 2:
+                tensor_b = tensor_b.unsqueeze(0)  # Add batch dimension
+        
         # Get target shape (use larger dimensions)
         target_shape = []
         for dim_a, dim_b in zip(tensor_a.shape, tensor_b.shape):
@@ -202,8 +218,34 @@ class WanVideoVectorDifference:
         if list(tensor.shape) == target_shape:
             return tensor
         
-        # For sequence length dimension, pad or truncate
-        if len(tensor.shape) == 3:  # [batch, seq_len, dim]
+        # Handle 2D tensors [seq_len, dim]
+        if len(tensor.shape) == 2 and len(target_shape) == 2:
+            seq_len, dim = tensor.shape
+            target_seq, target_dim = target_shape
+            
+            # Handle sequence length
+            if seq_len < target_seq:
+                # Pad with zeros
+                padding = torch.zeros(target_seq - seq_len, dim, 
+                                    dtype=tensor.dtype, device=tensor.device)
+                tensor = torch.cat([tensor, padding], dim=0)
+            elif seq_len > target_seq:
+                # Truncate
+                tensor = tensor[:target_seq, :]
+            
+            # Handle dimension mismatch
+            if dim != target_dim:
+                if dim < target_dim:
+                    # Pad embedding dimension
+                    padding = torch.zeros(tensor.shape[0], target_dim - dim,
+                                        dtype=tensor.dtype, device=tensor.device)
+                    tensor = torch.cat([tensor, padding], dim=1)
+                else:
+                    # Truncate embedding dimension
+                    tensor = tensor[:, :target_dim]
+                
+        # Handle 3D tensors [batch, seq_len, dim]
+        elif len(tensor.shape) == 3 and len(target_shape) == 3:
             batch, seq_len, dim = tensor.shape
             target_batch, target_seq, target_dim = target_shape
             
@@ -216,6 +258,17 @@ class WanVideoVectorDifference:
             elif seq_len > target_seq:
                 # Truncate
                 tensor = tensor[:, :target_seq, :]
+            
+            # Handle dimension mismatch
+            if dim != target_dim:
+                if dim < target_dim:
+                    # Pad embedding dimension
+                    padding = torch.zeros(batch, tensor.shape[1], target_dim - dim,
+                                        dtype=tensor.dtype, device=tensor.device)
+                    tensor = torch.cat([tensor, padding], dim=2)
+                else:
+                    # Truncate embedding dimension
+                    tensor = tensor[:, :, :target_dim]
         
         return tensor
 

@@ -1,20 +1,23 @@
 import torch
 import json
+import os
 from copy import deepcopy
 import gc
 import weakref
 from typing import Dict, Any, Optional
 
-# Immediate debug output
-print("[WanActivationEditor] Loading nodes.py module")
+# Module loading message (only if debug is already enabled via env var)
+if os.environ.get('WAN_ACTIVATION_DEBUG', '0') == '1':
+    print("[WanActivationEditor] Loading nodes.py module")
 
 # We work with the model structure as passed by WanVideoWrapper
 from .activation_patch import get_patcher, ContextPreprocessor
 
-# Import debug utilities and force a test print
+# Import debug utilities
 from .debug_utils import debug_print, DEBUG, VERBOSE
-print(f"[WanActivationEditor] Debug flags: DEBUG={DEBUG}, VERBOSE={VERBOSE}")
-debug_print("Debug utilities loaded and working!")
+if DEBUG:
+    print(f"[WanActivationEditor] Debug flags: DEBUG={DEBUG}, VERBOSE={VERBOSE}")
+    debug_print("Debug utilities loaded and working!")
 
 class WanVideoActivationEditor:
     """
@@ -37,7 +40,8 @@ class WanVideoActivationEditor:
                 "injection_strength": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01, "label": "Injection Strength"}),
                 "block_activations": ("STRING", {"default": default_activations, "multiline": False, "label": "Block Activations"}),
                 "enable_patching": ("BOOLEAN", {"default": True, "label": "Enable Runtime Patching"}),
-                "log_level": (["off", "basic", "verbose", "trace"], {"default": "basic", "label": "Log Level"}),
+                "log_level": (["off", "basic", "verbose", "trace"], {"default": "off", "label": "Log Level"}),
+                "injection_mode": (["context", "hidden_states", "both"], {"default": "context", "label": "Injection Mode"}),
             },
             "optional": {
                 "injection_embeds": ("WANVIDEOTEXTEMBEDS",),
@@ -69,7 +73,7 @@ class WanVideoActivationEditor:
             pass
 
     def apply_activation_editing(self, model, text_embeds, injection_strength, block_activations, 
-                               injection_embeds=None, enable_patching=True, log_level="basic"):
+                               injection_embeds=None, enable_patching=True, log_level="basic", injection_mode="context"):
         # Import debug utilities
         from .debug_utils import debug_print, verbose_print, debug_memory, set_log_level
         
@@ -82,6 +86,7 @@ class WanVideoActivationEditor:
             print(f"  Injection strength: {injection_strength}")
             print(f"  Enable patching: {enable_patching}")
             print(f"  Has injection embeds: {injection_embeds is not None}")
+            print(f"  Injection mode: {injection_mode}")
         
         debug_print("=== WanVideoActivationEditor.apply_activation_editing called ===")
         debug_print(f"Injection strength: {injection_strength}")
@@ -93,6 +98,38 @@ class WanVideoActivationEditor:
         if injection_embeds is None:
             debug_print("No injection embeds provided, passing through")
             return (model, text_embeds)
+        
+        # Measure embedding difference
+        if text_embeds is not None and injection_embeds is not None:
+            if 'prompt_embeds' in text_embeds and 'prompt_embeds' in injection_embeds:
+                main_embeds = text_embeds['prompt_embeds']
+                inj_embeds = injection_embeds['prompt_embeds']
+                
+                # Extract tensors from lists if needed
+                if isinstance(main_embeds, list) and len(main_embeds) > 0:
+                    main_embeds = main_embeds[0]
+                if isinstance(inj_embeds, list) and len(inj_embeds) > 0:
+                    inj_embeds = inj_embeds[0]
+                
+                if torch.is_tensor(main_embeds) and torch.is_tensor(inj_embeds):
+                    # Ensure same device for comparison
+                    if main_embeds.device != inj_embeds.device:
+                        inj_embeds = inj_embeds.to(main_embeds.device)
+                    
+                    # Calculate embedding difference
+                    diff = (main_embeds - inj_embeds).abs()
+                    diff_percent = (diff > 0.01).float().mean().item() * 100
+                    
+                    if log_level != "off":
+                        print(f"\n📊 Embedding difference: {diff_percent:.1f}%")
+                    
+                    # Warn if difference is too low
+                    if diff_percent < 30:
+                        if log_level != "off":
+                            print(f"⚠️  WARNING: Low embedding difference detected ({diff_percent:.1f}%)")
+                            print("  Your prompts are too similar for effective injection.")
+                            print("  For visible effects, aim for >50% difference between prompts.")
+                        debug_print(f"Low embedding difference: {diff_percent:.1f}%")
         
         # Parse block activations
         try:
@@ -196,7 +233,8 @@ class WanVideoActivationEditor:
             activation_config = {
                 'active_blocks': active_blocks,
                 'injection_strength': injection_strength,
-                'injection_embeds': injection_context if injection_context is not None and injection_context.shape[-1] == 5120 else injection_embeds
+                'injection_embeds': injection_context if injection_context is not None and injection_context.shape[-1] == 5120 else injection_embeds,
+                'injection_mode': injection_mode
             }
             
             debug_print(f"\n=== Attempting to patch model ===")

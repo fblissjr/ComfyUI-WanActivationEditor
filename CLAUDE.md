@@ -34,6 +34,8 @@ After extensive debugging and fixes, the runtime patching system is now fully fu
 - Simplified debug system with built-in console output
 - Fixed all `verbose_only` parameter errors
 - Added runtime log level control in WanVideoActivationEditor node
+- Added injection mode selection (context vs hidden states vs both)
+- Added WanVideoInjectionTester for debugging effectiveness
 
 **Next Steps:**
 Now that patching is confirmed working, users should experiment with:
@@ -63,7 +65,17 @@ Now that patching is confirmed working, users should experiment with:
 ### Activation Editing Nodes
 
 #### WanVideoActivationEditor
-Main node that configures the model and text embeddings for activation injection. Stores configuration in:
+Main node that configures the model and text embeddings for activation injection. 
+
+**Key Features:**
+- Runtime log level control (off/basic/verbose/trace)
+- Injection mode selection:
+  - `context`: Injects into cross-attention context (default, proven working)
+  - `hidden_states`: Injects into transformer hidden states (experimental)
+  - `both`: Injects into both context and hidden states
+- Embedding difference measurement with warnings for low differences
+
+Stores configuration in:
 - `model.model_options.transformer_options['wan_activation_editor']`
 - `text_embeds['wan_activation_editor']`
 
@@ -154,10 +166,11 @@ embedding_similarities -- Similarity scores
 
 ### Debug Features
 - **Log Level Control**: Dropdown in WanVideoActivationEditor for runtime control
-  - `off`: No debug output
+  - `off`: No debug output (default)
   - `basic`: Essential information only
   - `verbose`: Detailed operation logs
   - `trace`: Full trace with stack information
+- **Easy to Enable**: Just change dropdown from "off" to "basic" or "verbose"
 - **Built-in Console Output**: Shows patching status and active blocks based on log level
 - **Enhanced Viewer**: Respects global log level for debug information
 - **Real-time Feedback**: See which blocks are being called during generation
@@ -199,6 +212,30 @@ gothic_beach = add(beach, style * 0.5)
 - Watch VRAM usage during operations
 - Check operation timing in database
 - Monitor compression effectiveness
+
+## Injection Mode Insights
+
+### Context Injection (Default)
+- Modifies the cross-attention context that stays constant across all blocks
+- Proven to work and produce visible effects when prompts differ by >50%
+- Safe and stable approach
+
+### Hidden State Injection (Experimental)
+- Attempts to modify the hidden states (x) that flow through transformer blocks
+- More direct intervention in the generation process
+- Currently limited by dimension mismatch (T5 4096-dim vs hidden 5120-dim)
+- Would require projecting T5 embeddings through initial model layers first
+
+### Why Low Embedding Differences Occur
+1. **FP8 Quantization**: Limits embedding diversity during T5 generation
+2. **Similar Prompts**: T5 produces similar embeddings for semantically related text
+3. **Measurement Location**: We measure raw T5 output, not post-projection embeddings
+
+### Debugging Injection Effectiveness
+Use the WanVideoInjectionTester node to:
+- Verify embedding differences are >50% for visible effects
+- Check which dimensions differ most between prompts
+- Confirm patching is active and blocks are being called
 
 ## Code Guidelines
 - Always modify the main implementation directly

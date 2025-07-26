@@ -15,9 +15,13 @@ DEBUG = os.environ.get('WAN_ACTIVATION_DEBUG', '0') == '1'
 VERBOSE = os.environ.get('WAN_ACTIVATION_VERBOSE', '0') == '1'
 TRACE = os.environ.get('WAN_ACTIVATION_TRACE', '0') == '1'
 
-# Uncomment to force debug output without env vars:
-DEBUG = True
-VERBOSE = True
+# DEFAULT: Verbose logging is OFF
+# To enable verbose logging, either:
+# 1. Set log_level to "verbose" in WanVideoActivationEditor node
+# 2. Set environment variable: export WAN_ACTIVATION_VERBOSE=1
+# 3. Uncomment ONE line below:
+# DEBUG = True      # Basic debug output only
+# VERBOSE = True    # Verbose output (automatically enables DEBUG too)
 
 # Runtime log level override
 _LOG_LEVEL_OVERRIDE = None

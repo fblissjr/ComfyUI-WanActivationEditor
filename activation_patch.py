@@ -25,6 +25,7 @@ class ActivationPatcher:
     def __init__(self):
         self.active_patches = weakref.WeakKeyDictionary()
         self._text_embedding_layer = None
+        self._should_inject_hidden_states = False  # Flag to enable hidden state injection
     
     def patch_model(self, model_patcher, activation_config: Dict[str, Any]):
         """
@@ -69,9 +70,17 @@ class ActivationPatcher:
             active_blocks = activation_config.get('active_blocks', [])
             injection_strength = activation_config.get('injection_strength', 0.5)
             injection_embeds = activation_config.get('injection_embeds')
+            injection_mode = activation_config.get('injection_mode', 'context')
+            
+            # Set injection mode flags
+            self._should_inject_hidden_states = injection_mode in ['hidden_states', 'both']
+            self._should_inject_context = injection_mode in ['context', 'both']
             
             debug_print(f"Config - active_blocks: {active_blocks}")
             debug_print(f"Config - injection_strength: {injection_strength}")
+            debug_print(f"Config - injection_mode: {injection_mode}")
+            debug_print(f"Config - inject hidden states: {self._should_inject_hidden_states}")
+            debug_print(f"Config - inject context: {self._should_inject_context}")
             debug_print(f"Config - injection_embeds type: {type(injection_embeds)}")
             if injection_embeds is not None:
                 if hasattr(injection_embeds, 'shape'):
@@ -236,6 +245,7 @@ class ActivationPatcher:
             # Always print for first few calls to verify
             if not hasattr(patched_forward, '_call_count'):
                 patched_forward._call_count = 0
+                patched_forward._x_shapes = []  # Track x shapes
             patched_forward._call_count += 1
             
             # Force print for debugging - use plain print to ensure visibility
@@ -248,7 +258,13 @@ class ActivationPatcher:
                     print(f"  context (arg 5) shape: {args[5].shape if hasattr(args[5], 'shape') else type(args[5])}")
                 print(f"  kwargs keys: {list(kwargs.keys())}")
                 print(f"  injection_embeds is None: {injection_embeds is None}")
+                print(f"  Injection mode - Hidden states: {patcher_instance._should_inject_hidden_states}, Context: {patcher_instance._should_inject_context}")
                 sys.stdout.flush()  # Force flush output
+                
+                # Track x shapes to understand data flow
+                if hasattr(x, 'shape') and x.shape not in patched_forward._x_shapes:
+                    patched_forward._x_shapes.append(x.shape)
+                    print(f"  NEW x shape detected: {x.shape}")
             
             if patched_forward._call_count == 1:
                 debug_print(f"Block {block_idx}: Forward method called (first time)")
@@ -256,9 +272,28 @@ class ActivationPatcher:
                 debug_print(f"  args count: {len(args)}")
                 debug_print(f"  kwargs keys: {list(kwargs.keys())}")
             
-            # WanAttentionBlock forward signature:
-            # forward(self, x, e, seq_lens, grid_sizes, freqs, context, current_step, ...)
-            # From the output, we can see context is passed as a kwarg
+            # EXPERIMENTAL: Try hidden state injection
+            modified_x = x
+            if injection_embeds is not None and hasattr(x, 'shape'):
+                # Check if we should inject into hidden states
+                if patcher_instance._should_inject_hidden_states:
+                    try:
+                        # Process hidden state injection
+                        modified_x = patcher_instance._process_hidden_state_injection(
+                            block_idx, x, injection_embeds, injection_strength
+                        )
+                        
+                        if modified_x is not None and modified_x is not x:
+                            debug_print(f"Block {block_idx}: Applied hidden state injection")
+                            verbose_print(f"  Original x norm: {x.norm().item():.4f}")
+                            verbose_print(f"  Modified x norm: {modified_x.norm().item():.4f}")
+                            
+                            # Use modified x for forward pass
+                            x = modified_x
+                    except Exception as e:
+                        debug_print(f"Block {block_idx}: Error in hidden state injection: {e}")
+            
+            # Original context injection logic
             context = None
             
             # Check if context is in kwargs (this is the typical case)
@@ -270,7 +305,7 @@ class ActivationPatcher:
                         debug_print(f"Block {block_idx}: Context shape: {context.shape}")
             
             # Only process if we have both context and injection embeddings
-            if context is not None and injection_embeds is not None:
+            if context is not None and injection_embeds is not None and patcher_instance._should_inject_context:
                 try:
                     # Process injection
                     blended_context = patcher_instance._process_injection(
@@ -296,7 +331,7 @@ class ActivationPatcher:
                     import traceback
                     traceback.print_exc()
             
-            # Fall back to original forward
+            # Call original forward with potentially modified x
             return original_forward(x, *args, **kwargs)
         
         return patched_forward
@@ -467,6 +502,131 @@ class ActivationPatcher:
                     sqrt_val = math.sqrt(tokens_per_frame)
                     if sqrt_val == int(sqrt_val):
                         debug_print(f"  - {frames} frames × {int(sqrt_val)}×{int(sqrt_val)} patches")
+    
+    def _prepare_hidden_states_for_injection(self, injection_embeds, target_shape):
+        """
+        Prepare injection embeddings to be compatible with hidden states.
+        This might involve projecting raw T5 embeddings through initial layers.
+        """
+        debug_print("\n=== Preparing hidden states for injection ===")
+        debug_print(f"Target shape: {target_shape}")
+        debug_print(f"Injection embeds shape: {injection_embeds.shape if hasattr(injection_embeds, 'shape') else 'unknown'}")
+        
+        # For now, we can only inject if dimensions already match
+        # In the future, we could project T5 embeddings through the initial layers
+        # to get them into hidden state space
+        
+        if hasattr(injection_embeds, 'shape') and len(target_shape) >= 3:
+            if injection_embeds.shape[-1] == target_shape[-1]:
+                debug_print("Dimensions match! Can inject directly.")
+                return injection_embeds
+            else:
+                debug_print(f"Dimension mismatch: {injection_embeds.shape[-1]} vs {target_shape[-1]}")
+                debug_print("Would need to project through model layers first (not implemented)")
+                return None
+        
+        return None
+    
+    def _process_hidden_state_injection(self, block_idx, x, injection_embeds, injection_strength):
+        """Process injection into hidden states instead of cross-attention context."""
+        try:
+            debug_print(f"\n=== Block {block_idx} Hidden State Injection ===")
+            debug_print(f"Hidden state (x) shape: {x.shape}")
+            debug_print(f"Injection embeds type: {type(injection_embeds)}")
+            
+            # Extract injection tensor from dict if needed
+            if isinstance(injection_embeds, dict):
+                injection_embeds = injection_embeds.get('prompt_embeds', injection_embeds)
+            if isinstance(injection_embeds, list):
+                injection_embeds = injection_embeds[0] if len(injection_embeds) > 0 else None
+            
+            if injection_embeds is None or not torch.is_tensor(injection_embeds):
+                debug_print(f"Block {block_idx}: No valid injection tensor for hidden states")
+                return x
+            
+            debug_print(f"Injection tensor shape: {injection_embeds.shape}")
+            
+            # Hidden states typically have shape [batch, seq_len, hidden_dim]
+            # Injection embeds might be [seq_len, embed_dim] or [batch, seq_len, embed_dim]
+            
+            # Ensure injection embeds have batch dimension
+            if injection_embeds.dim() == 2:
+                injection_embeds = injection_embeds.unsqueeze(0)
+            
+            # Ensure same device and dtype
+            if injection_embeds.device != x.device or injection_embeds.dtype != x.dtype:
+                injection_embeds = injection_embeds.to(device=x.device, dtype=x.dtype)
+            
+            # Check if dimensions match
+            if x.shape[-1] != injection_embeds.shape[-1]:
+                debug_print(f"Block {block_idx}: Dimension mismatch for hidden states {x.shape[-1]} vs {injection_embeds.shape[-1]}")
+                
+                # If injection is raw T5 embeddings (4096) and x is hidden states (5120), we can't directly blend
+                # We would need to project through the model's layers first
+                if injection_embeds.shape[-1] == 4096 and x.shape[-1] == 5120:
+                    debug_print(f"Block {block_idx}: Cannot directly inject T5 embeddings into hidden states - dimensions incompatible")
+                    return x
+                
+                # For other mismatches, we can't proceed
+                return x
+            
+            # Align sequence lengths
+            if x.shape[1] != injection_embeds.shape[1]:
+                if injection_embeds.shape[1] > x.shape[1]:
+                    # Truncate injection to match x
+                    injection_embeds = injection_embeds[:, :x.shape[1], :]
+                else:
+                    # Pad injection to match x
+                    padding = torch.zeros(
+                        injection_embeds.shape[0],
+                        x.shape[1] - injection_embeds.shape[1],
+                        injection_embeds.shape[2],
+                        device=injection_embeds.device,
+                        dtype=injection_embeds.dtype
+                    )
+                    injection_embeds = torch.cat([injection_embeds, padding], dim=1)
+            
+            # Align batch dimension
+            if x.shape[0] != injection_embeds.shape[0]:
+                injection_embeds = injection_embeds.expand(x.shape[0], -1, -1)
+            
+            # Blend hidden states
+            blended_x = (1 - injection_strength) * x + injection_strength * injection_embeds
+            
+            # Calculate and log the change
+            diff = (blended_x - x).abs()
+            diff_percent = (diff > 0.01).float().mean().item() * 100
+            max_diff = diff.max().item()
+            mean_diff = diff.mean().item()
+            
+            debug_print(f"Block {block_idx} Hidden State Blending Results:")
+            debug_print(f"  - Strength applied: {injection_strength}")
+            debug_print(f"  - Mean difference: {mean_diff:.6f}")
+            debug_print(f"  - Max difference: {max_diff:.6f}")
+            debug_print(f"  - Percent changed: {diff_percent:.1f}%")
+            
+            # Additional validation metrics
+            if VERBOSE:
+                # Check if the blending preserved important properties
+                x_norm = x.norm(dim=-1, keepdim=True)
+                blended_norm = blended_x.norm(dim=-1, keepdim=True)
+                norm_ratio = (blended_norm / (x_norm + 1e-6)).mean().item()
+                
+                debug_print(f"  - Norm preservation ratio: {norm_ratio:.4f} (1.0 = perfect preservation)")
+                
+                # Check if we're actually changing the hidden states meaningfully
+                if diff_percent < 1.0:
+                    debug_print(f"  - WARNING: Very low change detected! Hidden states barely modified.")
+                elif diff_percent > 90.0:
+                    debug_print(f"  - WARNING: Extreme change detected! May destabilize generation.")
+            
+            return blended_x
+            
+        except Exception as e:
+            debug_print(f"Block {block_idx}: Error in hidden state injection: {e}")
+            import traceback
+            traceback.print_exc()
+            return x
 
 
 class ContextPreprocessor:

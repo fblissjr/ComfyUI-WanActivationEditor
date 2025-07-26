@@ -1,0 +1,204 @@
+{
+  "last_node_id": 10,
+  "last_link_id": 15,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "WanVideoModelLoader",
+      "pos": [100, 100],
+      "size": {"0": 300, "1": 100},
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {"name": "model", "type": "WANVIDEOMODEL", "links": [1], "slot_index": 0}
+      ],
+      "properties": {},
+      "widgets_values": ["model.pth", "fp8", "cuda"]
+    },
+    {
+      "id": 2,
+      "type": "WanVideoT5TextEncoderLoader",
+      "pos": [100, 250],
+      "size": {"0": 300, "1": 100},
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {"name": "text_encoder", "type": "T5_TEXT_ENCODER", "links": [2, 3], "slot_index": 0}
+      ],
+      "properties": {},
+      "widgets_values": ["umt5-xxl", "fp8", "cuda"]
+    },
+    {
+      "id": 3,
+      "type": "WanVideoTextEncode",
+      "pos": [450, 100],
+      "size": {"0": 400, "1": 200},
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {"name": "text_encoder", "type": "T5_TEXT_ENCODER", "link": 2}
+      ],
+      "outputs": [
+        {"name": "text_embeds", "type": "WANVIDEOTEXTEMBEDS", "links": [4, 10], "slot_index": 0}
+      ],
+      "properties": {},
+      "widgets_values": ["A serene beach at sunset with gentle waves"]
+    },
+    {
+      "id": 4,
+      "type": "WanVideoTextEncode",
+      "pos": [450, 350],
+      "size": {"0": 400, "1": 200},
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {"name": "text_encoder", "type": "T5_TEXT_ENCODER", "link": 3}
+      ],
+      "outputs": [
+        {"name": "text_embeds", "type": "WANVIDEOTEXTEMBEDS", "links": [5], "slot_index": 0}
+      ],
+      "properties": {},
+      "widgets_values": ["A dark gothic castle in a thunderstorm"]
+    },
+    {
+      "id": 5,
+      "type": "WanVideoEmbeddingAmplifier",
+      "pos": [900, 350],
+      "size": {"0": 350, "1": 150},
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {"name": "main_embeds", "type": "WANVIDEOTEXTEMBEDS", "link": 10},
+        {"name": "injection_embeds", "type": "WANVIDEOTEXTEMBEDS", "link": 5}
+      ],
+      "outputs": [
+        {"name": "amplified_injection", "type": "WANVIDEOTEXTEMBEDS", "links": [6], "slot_index": 0},
+        {"name": "info", "type": "STRING", "links": [11], "slot_index": 1}
+      ],
+      "properties": {},
+      "widgets_values": [60.0, "push_apart"]
+    },
+    {
+      "id": 6,
+      "type": "WanVideoBlockActivationBuilder",
+      "pos": [900, 550],
+      "size": {"0": 350, "1": 400},
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "outputs": [
+        {"name": "block_activations", "type": "STRING", "links": [7], "slot_index": 0}
+      ],
+      "properties": {},
+      "widgets_values": ["mid_blocks"]
+    },
+    {
+      "id": 7,
+      "type": "WanVideoActivationEditor",
+      "pos": [1300, 100],
+      "size": {"0": 400, "1": 250},
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {"name": "model", "type": "WANVIDEOMODEL", "link": 1},
+        {"name": "text_embeds", "type": "WANVIDEOTEXTEMBEDS", "link": 4},
+        {"name": "injection_embeds", "type": "WANVIDEOTEXTEMBEDS", "link": 6},
+        {"name": "block_activations", "type": "STRING", "link": 7}
+      ],
+      "outputs": [
+        {"name": "model", "type": "WANVIDEOMODEL", "links": [8], "slot_index": 0},
+        {"name": "text_embeds", "type": "WANVIDEOTEXTEMBEDS", "links": [9], "slot_index": 1}
+      ],
+      "properties": {},
+      "widgets_values": [0.5, "0000000000111111111111111111110000000000", true, "basic", "context"]
+    },
+    {
+      "id": 8,
+      "type": "WanVideoInjectionTester",
+      "pos": [1300, 400],
+      "size": {"0": 400, "1": 200},
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {"name": "model", "type": "WANVIDEOMODEL", "link": 8},
+        {"name": "text_embeds", "type": "WANVIDEOTEXTEMBEDS", "link": 9}
+      ],
+      "outputs": [
+        {"name": "test_results", "type": "STRING", "links": [12], "slot_index": 0}
+      ],
+      "properties": {},
+      "widgets_values": [true]
+    },
+    {
+      "id": 9,
+      "type": "ShowText",
+      "pos": [1750, 350],
+      "size": {"0": 400, "1": 200},
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {"name": "text", "type": "STRING", "link": 11}
+      ],
+      "outputs": [],
+      "properties": {},
+      "title": "Amplifier Info"
+    },
+    {
+      "id": 10,
+      "type": "ShowText",
+      "pos": [1750, 600],
+      "size": {"0": 400, "1": 300},
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {"name": "text", "type": "STRING", "link": 12}
+      ],
+      "outputs": [],
+      "properties": {},
+      "title": "Injection Test Results"
+    }
+  ],
+  "links": [
+    [1, 1, 0, 7, 0, "WANVIDEOMODEL"],
+    [2, 2, 0, 3, 0, "T5_TEXT_ENCODER"],
+    [3, 2, 0, 4, 0, "T5_TEXT_ENCODER"],
+    [4, 3, 0, 7, 1, "WANVIDEOTEXTEMBEDS"],
+    [5, 4, 0, 5, 1, "WANVIDEOTEXTEMBEDS"],
+    [6, 5, 0, 7, 2, "WANVIDEOTEXTEMBEDS"],
+    [7, 6, 0, 7, 3, "STRING"],
+    [8, 7, 0, 8, 0, "WANVIDEOMODEL"],
+    [9, 7, 1, 8, 1, "WANVIDEOTEXTEMBEDS"],
+    [10, 3, 0, 5, 0, "WANVIDEOTEXTEMBEDS"],
+    [11, 5, 1, 9, 0, "STRING"],
+    [12, 8, 0, 10, 0, "STRING"]
+  ],
+  "groups": [
+    {
+      "title": "Text Encoding",
+      "bounding": [80, 20, 800, 580],
+      "color": "#3f789e"
+    },
+    {
+      "title": "Amplification",
+      "bounding": [880, 270, 390, 300],
+      "color": "#a1309b"
+    },
+    {
+      "title": "Injection & Testing",
+      "bounding": [1280, 20, 900, 900],
+      "color": "#b58b2a"
+    }
+  ],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}
