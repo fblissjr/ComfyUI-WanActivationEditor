@@ -14,18 +14,25 @@
 This project implements block-level activation editing and vector arithmetic operations for WanVideo models through ComfyUI nodes. It allows injecting alternative text conditioning into specific transformer blocks and performing mathematical operations on embeddings to create novel effects.
 
 ## Current Status
-After extensive debugging and fixes, the runtime patching system is now fully functional. All transformer blocks are successfully patched and the forward methods are being called during generation.
+The runtime patching system is fully functional and activation injection is confirmed working. Testing shows the injection successfully replaces context in activated blocks with strength=1.0.
 
 **What's Working:**
 1. Runtime patching of all 40 transformer blocks
 2. Forward method interception confirmed during generation
 3. Context parameter successfully captured (shape: [1, 512, 5120])
-4. Injection embeddings properly prepared and available
+4. Injection successfully replaces context when strength=1.0
 5. Block-level activation configuration stored correctly
 6. Vector arithmetic operations with automatic shape alignment
 7. DuckDB storage with compression (3-4x reduction)
 8. Memory-efficient operations preventing VRAM leaks
-9. Debug system simplified with console output
+9. Debug system with runtime log level control
+
+**Key Insights from Testing:**
+- With strength=1.0, context is completely replaced by injection embeddings
+- Context norm varies significantly between prompts (18.2 vs 106.8 observed)
+- Injection norm remains consistent (~23.2)
+- Post-projection differences vary (1.2% to 22.6%) due to projection normalization
+- The system is working correctly - injection replaces context as designed
 
 **Recent Fixes:**
 - Fixed model path discovery (`model.blocks` instead of `transformer_blocks`)
@@ -37,11 +44,23 @@ After extensive debugging and fixes, the runtime patching system is now fully fu
 - Added injection mode selection (context vs hidden states vs both)
 - Added WanVideoInjectionTester for debugging effectiveness
 
+**Understanding the Projection Issue:**
+The text_embedding layer normalizes embeddings differently based on content:
+- Same prompts can have vastly different norms after projection
+- This affects how much "difference" is measured post-projection
+- But injection still works - it replaces the context regardless
+
+**Solutions for Better Control:**
+1. **Embedding Amplifier**: Ensures raw embeddings differ by target amount
+2. **Projection Booster**: Amplifies differences after projection
+3. **Latent Encoder/Injector**: Bypasses projection using model's internal representations
+4. **Direct Injector**: Forces specific difference levels in context
+
 **Next Steps:**
-Now that patching is confirmed working, users should experiment with:
-- Different injection prompts and strengths
-- Various block activation patterns
+- Experiment with different prompts and strengths
 - Document which blocks produce which effects
+- Test latent injection for stronger effects
+- Map block sensitivities empirically
 
 ## Architecture
 
@@ -229,7 +248,8 @@ gothic_beach = add(beach, style * 0.5)
 ### Why Low Embedding Differences Occur
 1. **FP8 Quantization**: Limits embedding diversity during T5 generation
 2. **Similar Prompts**: T5 produces similar embeddings for semantically related text
-3. **Measurement Location**: We measure raw T5 output, not post-projection embeddings
+3. **Projection Layer**: The text_embedding layer (4096→5120) destroys most differences
+4. **Measurement Location**: We need to measure AFTER projection to see true context differences
 
 ### Debugging Injection Effectiveness
 Use the WanVideoInjectionTester node to:
@@ -243,6 +263,65 @@ Use the WanVideoInjectionTester node to:
 - Include debug print statements
 - Handle edge cases gracefully
 - Clean up resources immediately
+
+## Key Discovery: The Projection Bottleneck
+
+After extensive testing, we discovered the core issue:
+1. T5 embeddings can have 50%+ differences
+2. The text_embedding projection layer reduces this to <1%
+3. This explains why even "different" prompts produce minimal effects
+4. The solution is to work around or after this projection
+
+This fundamental insight led to creating multiple solutions that operate at different points in the pipeline to preserve or restore embedding differences.
+
+## Complete Solution Overview
+
+### Problem Diagnosis
+- **Initial Issue**: Activation editing produced minimal visible effects
+- **Root Cause**: Text embedding projection (4096→5120) destroys 99% of embedding differences
+- **Evidence**: 53.6% raw embedding difference → 0.3% context difference after projection
+
+### Solutions Implemented
+
+#### 1. Pre-Projection Solutions
+- **WanVideoEmbeddingAmplifier**: Boosts raw T5 embedding differences before projection
+  - Works with existing pipeline
+  - Simple and effective for most cases
+  - Target 60%+ difference for visible effects
+
+#### 2. Post-Projection Solutions  
+- **WanVideoProjectionBooster**: Amplifies differences after projection damage
+  - Boost factor 1-50x to restore lost differences
+  - Works with projected 5120-dim embeddings
+  - Preserves norm for stability
+
+#### 3. Bypass Solutions
+- **WanVideoLatentEncoder**: Captures embeddings after N transformer blocks
+  - Gets true latent representations in 5120-dim space
+  - Bypasses problematic projection entirely
+  - Caches results for performance
+  
+- **WanVideoLatentInjector**: Uses latent embeddings for injection
+  - Works with encoder output
+  - Operates in model's native space
+  - Should produce strongest effects
+
+#### 4. Force Solutions
+- **WanVideoDirectInjector**: Forces specific difference levels
+  - Most aggressive approach
+  - Guarantees target difference percentage
+  - Three modes: additive, replace, blend
+
+### Usage Recommendations
+1. **Start Simple**: Try Embedding Amplifier first (60% target)
+2. **If Subtle**: Use Projection Booster (10-20x boost)
+3. **For Maximum Effect**: Use Latent Encoder + Injector combo
+4. **Last Resort**: Direct Injector with high target difference
+
+### Validation Tools
+- **WanVideoInjectionTester**: Verifies embedding differences
+- **WanVideoBlockActivationViewer**: Confirms injection is active
+- **Debug Logging**: Set to "verbose" to see detailed metrics
 
 ## Future Roadmap
 See ROADMAP.md for planned features including:

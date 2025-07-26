@@ -46,15 +46,15 @@ Now the real fun begins - help us discover what each block does!
 1. Install in your ComfyUI `custom_nodes` folder
 2. Make sure [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper) is installed
 3. Restart ComfyUI
-4. Add the nodes to your own workflow, or load an example workflow from `example_workflows/`
-4a. Basic nodes to add: `WanVideo Block Activation Builder`, `WanVideo Activation Editor`, `WanVideo Block Activation Viewer` if you prefer to visualize the activation patterns in the UI.
-4b. Advanced nodes to add: `WanVideo Activation Database`, `WanVideo Activation Vector Operations`, `WanVideo Activation Strength Patterns`
-4c. Add two text encoder nodes to the workflow - one for the main prompt embedding and one for the injection prompt embedding.
-4d. Connect the `WanVideo Model Loader`'s `model` output to the `WanVideo Activation Editor` node's input of `model`.
-4e. Connect the main prompt encoder to the `WanVideo Activation Editor` node's input of `text_embeds`.
-4f. Connect the injection prompt encoder to the `WanVideo Activation Editor` node's input of `text_embeds_injection`.
-4g. Connect the `WanVideo WanVideo Block Activation Builder` node's output of `block_activations` to the `WanVideo Block Activation Editor` node's input of `block_activations` (you can manually edit the blocks of 1s and 0s if you want as well).
-5. Start experimenting
+4. Load one of the example workflows (recommend starting with `simple_activation.json`)
+5. Basic workflow setup:
+   - Two WanVideoTextEncode nodes (main + injection prompts)
+   - **WanVideoBlockActivationBuilder** for selecting blocks
+   - **WanVideoActivationEditor** for applying injection
+   - Optional: **WanVideoInjectionTester** to check embedding differences
+6. Set injection strength to 1.0 for maximum effect
+7. Use different prompts for main and injection
+8. Enable "basic" or "verbose" logging in WanVideoActivationEditor to see injection metrics
 
 ## Example Workflows
 
@@ -109,6 +109,31 @@ Four workflows included:
 - Three modes: push_apart (gentle), maximize_diff (aggressive), orthogonalize (mathematical)
 - Default target of 60% difference ensures visible effects
 - Preserves embedding structure while increasing contrast
+
+### Advanced Solutions
+
+**WanVideoLatentEncoder** - Captures model's internal representations
+- Runs embeddings through N transformer blocks to get true latents
+- Captures representations in model's native 5120-dim space
+- Caches results for performance
+- Preserves differences that projection destroys
+
+**WanVideoLatentInjector** - Uses latent representations for injection
+- Works with latent embeddings from the encoder
+- Should produce much stronger effects than text embedding injection
+- Operates in the model's native latent space
+
+**WanVideoProjectionBooster** - Boosts differences after projection
+- Works with already-projected 5120-dim embeddings
+- Amplifies differences destroyed by text_embedding layer
+- Configurable boost factor (1-50x)
+- Preserves norm for stability
+
+**WanVideoDirectInjector** - Most aggressive approach
+- Directly creates context with target difference level
+- Bypasses normal embedding pipeline
+- Three modes: additive, replace, blend
+- Ensures specified difference percentage
 
 ### Advanced Strength Control
 
@@ -171,6 +196,22 @@ My professional experience is based on a data background over 20 years (and LLMs
 - Progressive morph: Linear gradient 0→1 across blocks
 - Hybrid concepts: "wolf" + "liquid mercury" = metallic flowing wolf
 
+## Understanding Activation Injection
+
+The system successfully injects alternative prompts into specific transformer blocks. With injection strength=1.0, the context is completely replaced in activated blocks.
+
+**How the projection layer affects results:**
+- The text_embedding layer (4096→5120) normalizes embeddings based on content
+- Different prompts can have vastly different norms after projection
+- This affects measured differences but doesn't prevent injection from working
+- The injection still replaces context regardless of measured differences
+
+**Solutions we built (in order of complexity):**
+1. **Simple**: Use the Embedding Amplifier to boost differences before projection
+2. **Better**: Use the Projection Booster to amplify after projection
+3. **Advanced**: Use Latent Encoder + Injector to bypass projection entirely
+4. **Aggressive**: Use Direct Injector to force specific difference levels
+
 ## The Simple Solution: Embedding Amplifier
 
 If your prompts aren't different enough (common with FP8 quantization), use the **WanVideoEmbeddingAmplifier** node:
@@ -184,13 +225,13 @@ This ensures your embeddings are different enough for visible effects, even with
 
 ## Troubleshooting
 
-Check console output for "Percent changed" - needs to be >50% for visible effects!
+Enable logging in WanVideoActivationEditor to see injection metrics. Look for "Percent changed" in console output.
 
 Common issues:
-- **Low embedding difference (<30%)** → Use the Embedding Amplifier node!
-- **No visible effect** → Increase strength or use more different prompts (aim for >50% difference)
-- **No blocks found** → Update WanVideoWrapper (or I need to update this repo to match WanVideoWrapper's changes)
-- **Dimension mismatch** → Handled automatically
+- **No visible effect** → Ensure injection strength is high (0.7-1.0) and prompts are different
+- **Low embedding difference** → Normal due to projection normalization, injection still works
+- **Device errors** → Embeddings should be on correct device automatically
+- **No blocks found** → Update WanVideoWrapper to latest version
 
 ## What (I) Still Don't Know
 

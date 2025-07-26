@@ -94,10 +94,31 @@ class WanVideoActivationEditor:
         debug_print(f"Block activations: {block_activations[:10]}... (first 10)")
         debug_memory("Initial ")
         
+        # Debug device placement
+        if text_embeds and 'prompt_embeds' in text_embeds:
+            main_embeds = text_embeds['prompt_embeds']
+            if isinstance(main_embeds, list) and len(main_embeds) > 0:
+                debug_print(f"Main embeddings device: {main_embeds[0].device if torch.is_tensor(main_embeds[0]) else 'not tensor'}")
+            elif torch.is_tensor(main_embeds):
+                debug_print(f"Main embeddings device: {main_embeds.device}")
+        
+        if injection_embeds and 'prompt_embeds' in injection_embeds:
+            inj_embeds = injection_embeds['prompt_embeds']
+            if isinstance(inj_embeds, list) and len(inj_embeds) > 0:
+                debug_print(f"Injection embeddings device: {inj_embeds[0].device if torch.is_tensor(inj_embeds[0]) else 'not tensor'}")
+            elif torch.is_tensor(inj_embeds):
+                debug_print(f"Injection embeddings device: {inj_embeds.device}")
+        
         # If no injection embeds provided, just pass through
         if injection_embeds is None:
             debug_print("No injection embeds provided, passing through")
             return (model, text_embeds)
+        
+        # Debug: Check if we're getting the actual prompt text
+        if text_embeds and 'prompt' in text_embeds:
+            debug_print(f"Main prompt: {text_embeds.get('prompt', 'N/A')[:50]}...")
+        if injection_embeds and 'prompt' in injection_embeds:
+            debug_print(f"Injection prompt: {injection_embeds.get('prompt', 'N/A')[:50]}...")
         
         # Measure embedding difference
         if text_embeds is not None and injection_embeds is not None:
@@ -112,9 +133,31 @@ class WanVideoActivationEditor:
                     inj_embeds = inj_embeds[0]
                 
                 if torch.is_tensor(main_embeds) and torch.is_tensor(inj_embeds):
+                    debug_print(f"Comparing embeddings - Main shape: {main_embeds.shape}, Injection shape: {inj_embeds.shape}")
+                    
+                    # Check if they're the same tensor object
+                    if main_embeds is inj_embeds:
+                        debug_print("WARNING: Main and injection embeddings are the SAME tensor object!")
+                    
+                    # Check if they have identical values
+                    if torch.equal(main_embeds, inj_embeds):
+                        debug_print("WARNING: Main and injection embeddings have IDENTICAL values!")
+                    
                     # Ensure same device for comparison
                     if main_embeds.device != inj_embeds.device:
                         inj_embeds = inj_embeds.to(main_embeds.device)
+                    
+                    # Align shapes if different
+                    if main_embeds.shape[0] != inj_embeds.shape[0]:
+                        max_len = max(main_embeds.shape[0], inj_embeds.shape[0])
+                        
+                        # Pad the shorter one
+                        if main_embeds.shape[0] < max_len:
+                            pad_size = max_len - main_embeds.shape[0]
+                            main_embeds = torch.nn.functional.pad(main_embeds, (0, 0, 0, pad_size))
+                        if inj_embeds.shape[0] < max_len:
+                            pad_size = max_len - inj_embeds.shape[0]
+                            inj_embeds = torch.nn.functional.pad(inj_embeds, (0, 0, 0, pad_size))
                     
                     # Calculate embedding difference
                     diff = (main_embeds - inj_embeds).abs()
@@ -221,6 +264,12 @@ class WanVideoActivationEditor:
                             # Project through text_embedding layer
                             injection_context = text_embedding_layer(padded_injection)
                             
+                            # Ensure the result stays on the correct device
+                            # The text_embedding layer should keep it on the right device,
+                            # but let's be explicit about it
+                            if injection_context.device != target_device:
+                                injection_context = injection_context.to(device=target_device, dtype=target_dtype)
+                            
                             # Update the injection_embeds dict with projected embeddings
                             if isinstance(injection_embeds, dict):
                                 injection_embeds['prompt_embeds'] = injection_context
@@ -230,10 +279,23 @@ class WanVideoActivationEditor:
                     pass
             
             # Apply runtime patching
+            # Debug what we're actually passing to the patcher
+            final_injection = injection_context if injection_context is not None and injection_context.shape[-1] == 5120 else injection_embeds
+            
+            if final_injection is not None:
+                if torch.is_tensor(final_injection):
+                    debug_print(f"Passing tensor injection with shape: {final_injection.shape}")
+                elif isinstance(final_injection, dict) and 'prompt_embeds' in final_injection:
+                    pe = final_injection['prompt_embeds']
+                    if torch.is_tensor(pe):
+                        debug_print(f"Passing dict injection with prompt_embeds shape: {pe.shape}")
+                    elif isinstance(pe, list) and len(pe) > 0:
+                        debug_print(f"Passing dict injection with prompt_embeds list[0] shape: {pe[0].shape if torch.is_tensor(pe[0]) else 'not tensor'}")
+            
             activation_config = {
                 'active_blocks': active_blocks,
                 'injection_strength': injection_strength,
-                'injection_embeds': injection_context if injection_context is not None and injection_context.shape[-1] == 5120 else injection_embeds,
+                'injection_embeds': final_injection,
                 'injection_mode': injection_mode
             }
             
@@ -290,8 +352,18 @@ class WanVideoActivationEditor:
         modified_embeds = text_embeds.copy()
         
         # Add our activation configuration to the text embeddings dict
+        # Make sure injection embeddings are stored properly
+        injection_embeds_to_store = None
+        if injection_embeds:
+            if injection_context is not None and injection_context.shape[-1] == 5120:
+                # Use the pre-projected context
+                injection_embeds_to_store = injection_context
+            else:
+                # Use the original injection embeddings
+                injection_embeds_to_store = injection_embeds.get('prompt_embeds') if isinstance(injection_embeds, dict) else injection_embeds
+        
         modified_embeds['wan_activation_editor'] = {
-            'injection_embeds': injection_embeds.get('prompt_embeds') if injection_embeds else None,
+            'injection_embeds': injection_embeds_to_store,
             'active_blocks': active_blocks,
             'injection_strength': injection_strength,
             'block_activations': block_activations,

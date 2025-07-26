@@ -9,7 +9,6 @@ from typing import Dict, List, Optional, Any
 import weakref
 import os
 import math
-import sys
 
 # Import debug utilities
 from .debug_utils import (
@@ -248,23 +247,22 @@ class ActivationPatcher:
                 patched_forward._x_shapes = []  # Track x shapes
             patched_forward._call_count += 1
             
-            # Force print for debugging - use plain print to ensure visibility
+            # Log first few calls for debugging
             if patched_forward._call_count <= 3:
-                print(f"\n[ACTIVATION PATCH] Block {block_idx} forward called!")
-                print(f"  Call #{patched_forward._call_count}")
-                print(f"  x.shape: {x.shape if hasattr(x, 'shape') else 'unknown'}")
-                print(f"  args count: {len(args)}")
+                verbose_print(f"\n[ACTIVATION PATCH] Block {block_idx} forward called!")
+                verbose_print(f"  Call #{patched_forward._call_count}")
+                verbose_print(f"  x.shape: {x.shape if hasattr(x, 'shape') else 'unknown'}")
+                verbose_print(f"  args count: {len(args)}")
                 if len(args) > 5:
-                    print(f"  context (arg 5) shape: {args[5].shape if hasattr(args[5], 'shape') else type(args[5])}")
-                print(f"  kwargs keys: {list(kwargs.keys())}")
-                print(f"  injection_embeds is None: {injection_embeds is None}")
-                print(f"  Injection mode - Hidden states: {patcher_instance._should_inject_hidden_states}, Context: {patcher_instance._should_inject_context}")
-                sys.stdout.flush()  # Force flush output
+                    verbose_print(f"  context (arg 5) shape: {args[5].shape if hasattr(args[5], 'shape') else type(args[5])}")
+                verbose_print(f"  kwargs keys: {list(kwargs.keys())}")
+                verbose_print(f"  injection_embeds is None: {injection_embeds is None}")
+                verbose_print(f"  Injection mode - Hidden states: {patcher_instance._should_inject_hidden_states}, Context: {patcher_instance._should_inject_context}")
                 
                 # Track x shapes to understand data flow
                 if hasattr(x, 'shape') and x.shape not in patched_forward._x_shapes:
                     patched_forward._x_shapes.append(x.shape)
-                    print(f"  NEW x shape detected: {x.shape}")
+                    verbose_print(f"  NEW x shape detected: {x.shape}")
             
             if patched_forward._call_count == 1:
                 debug_print(f"Block {block_idx}: Forward method called (first time)")
@@ -342,13 +340,22 @@ class ActivationPatcher:
         debug_print(f"\n=== Block {block_idx} Injection Processing ===")
         verbose_print(f"Context type: {type(context)}, Injection type: {type(injection_embeds)}")
         
+        # Check if we should apply projection boost
+        if hasattr(self, '_boost_factor') and self._boost_factor > 1.0:
+            debug_print(f"Applying projection boost: {self._boost_factor}x")
+        
         # Extract tensors from dicts if needed
         if isinstance(context, dict):
             context = context.get('prompt_embeds', context)
             verbose_print("Extracted context from dict")
         if isinstance(injection_embeds, dict):
-            injection_embeds = injection_embeds.get('prompt_embeds', injection_embeds)
-            verbose_print("Extracted injection_embeds from dict")
+            # Check if this is a latent embedding dict
+            if 'latent' in injection_embeds:
+                injection_embeds = injection_embeds.get('latent')
+                verbose_print("Extracted latent tensor from injection_embeds")
+            else:
+                injection_embeds = injection_embeds.get('prompt_embeds', injection_embeds)
+                verbose_print("Extracted injection_embeds from dict")
         
         # Handle list format
         if isinstance(context, list):

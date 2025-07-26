@@ -9,7 +9,7 @@ import hashlib
 import uuid
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 from contextlib import contextmanager
 
 import duckdb
@@ -211,6 +211,27 @@ class EmbeddingDatabase:
         ).fetchone()
         
         return result[0] if result else None
+    
+    def store_latent(self, latent_data: Dict[str, Any], source_prompt: str = "") -> str:
+        """Store latent embedding data with special handling."""
+        try:
+            latent_tensor = latent_data.get('latent')
+            if not torch.is_tensor(latent_tensor):
+                return None
+            
+            # Create a special prompt for latents
+            capture_blocks = latent_data.get('capture_blocks', 0)
+            latent_prompt = f"[LATENT-{capture_blocks}] {source_prompt}"
+            
+            # Store using existing method with latent marker
+            latent_id = self.store_embedding(latent_prompt, latent_tensor, 
+                                           model_version=f"wan2.1-latent-{capture_blocks}")
+            
+            return latent_id
+            
+        except Exception as e:
+            print(f"[EmbeddingDB] Error storing latent: {e}")
+            return None
     
     def vector_operation(self, operation_type: str, inputs: Dict[str, Tuple[str, float]], 
                         parameters: Dict = None) -> str:

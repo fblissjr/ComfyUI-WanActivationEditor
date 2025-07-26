@@ -153,6 +153,13 @@ class WanVideoVectorDifference:
             tensor_a, tensor_b = self._align_tensors(tensor_a, tensor_b)
             print(f"[VectorDifference] Aligned shapes: {tensor_a.shape} and {tensor_b.shape}")
         
+        # Ensure tensors are on the same device
+        if tensor_a.device != tensor_b.device:
+            print(f"[VectorDifference] Device mismatch: {tensor_a.device} vs {tensor_b.device}")
+            # Move tensor_b to tensor_a's device
+            tensor_b = tensor_b.to(device=tensor_a.device, dtype=tensor_a.dtype)
+            print(f"[VectorDifference] Moved tensor_b to {tensor_a.device}")
+        
         # Compute difference
         with torch.no_grad():
             difference = tensor_a - tensor_b
@@ -186,6 +193,33 @@ class WanVideoVectorDifference:
     def _extract_tensor(self, text_embeds):
         """Extract tensor from embedding dict or tensor."""
         if isinstance(text_embeds, dict):
+            # Check for latent embeddings first
+            if 'latent' in text_embeds:
+                tensor = text_embeds['latent']
+                # Move to GPU if needed (latent embeddings are stored on CPU)
+                if tensor.device.type == 'cpu' and torch.cuda.is_available():
+                    # Get device/dtype info if available
+                    device_str = text_embeds.get('device', 'cuda:0')
+                    dtype_str = text_embeds.get('dtype', 'torch.float16')
+                    
+                    # Parse device
+                    device = torch.device(device_str)
+                    
+                    # Parse dtype
+                    if 'float16' in dtype_str:
+                        dtype = torch.float16
+                    elif 'float32' in dtype_str:
+                        dtype = torch.float32
+                    elif 'e4m3fn' in dtype_str:
+                        dtype = torch.float8_e4m3fn
+                    elif 'e5m2' in dtype_str:
+                        dtype = torch.float8_e5m2
+                    else:
+                        dtype = torch.float16  # default
+                    
+                    tensor = tensor.to(device=device, dtype=dtype)
+                return tensor
+            # Otherwise check for prompt_embeds
             embedding = text_embeds.get('prompt_embeds')
             if isinstance(embedding, list):
                 return embedding[0]
@@ -396,6 +430,33 @@ class WanVideoVectorArithmetic:
     def _extract_tensor(self, text_embeds):
         """Extract tensor from embedding dict or tensor."""
         if isinstance(text_embeds, dict):
+            # Check for latent embeddings first
+            if 'latent' in text_embeds:
+                tensor = text_embeds['latent']
+                # Move to GPU if needed (latent embeddings are stored on CPU)
+                if tensor.device.type == 'cpu' and torch.cuda.is_available():
+                    # Get device/dtype info if available
+                    device_str = text_embeds.get('device', 'cuda:0')
+                    dtype_str = text_embeds.get('dtype', 'torch.float16')
+                    
+                    # Parse device
+                    device = torch.device(device_str)
+                    
+                    # Parse dtype
+                    if 'float16' in dtype_str:
+                        dtype = torch.float16
+                    elif 'float32' in dtype_str:
+                        dtype = torch.float32
+                    elif 'e4m3fn' in dtype_str:
+                        dtype = torch.float8_e4m3fn
+                    elif 'e5m2' in dtype_str:
+                        dtype = torch.float8_e5m2
+                    else:
+                        dtype = torch.float16  # default
+                    
+                    tensor = tensor.to(device=device, dtype=dtype)
+                return tensor
+            # Otherwise check for prompt_embeds
             embedding = text_embeds.get('prompt_embeds')
             if isinstance(embedding, list):
                 return embedding[0]
@@ -525,6 +586,33 @@ class WanVideoVectorInterpolation:
     def _extract_tensor(self, text_embeds):
         """Extract tensor from embedding dict or tensor."""
         if isinstance(text_embeds, dict):
+            # Check for latent embeddings first
+            if 'latent' in text_embeds:
+                tensor = text_embeds['latent']
+                # Move to GPU if needed (latent embeddings are stored on CPU)
+                if tensor.device.type == 'cpu' and torch.cuda.is_available():
+                    # Get device/dtype info if available
+                    device_str = text_embeds.get('device', 'cuda:0')
+                    dtype_str = text_embeds.get('dtype', 'torch.float16')
+                    
+                    # Parse device
+                    device = torch.device(device_str)
+                    
+                    # Parse dtype
+                    if 'float16' in dtype_str:
+                        dtype = torch.float16
+                    elif 'float32' in dtype_str:
+                        dtype = torch.float32
+                    elif 'e4m3fn' in dtype_str:
+                        dtype = torch.float8_e4m3fn
+                    elif 'e5m2' in dtype_str:
+                        dtype = torch.float8_e5m2
+                    else:
+                        dtype = torch.float16  # default
+                    
+                    tensor = tensor.to(device=device, dtype=dtype)
+                return tensor
+            # Otherwise check for prompt_embeds
             embedding = text_embeds.get('prompt_embeds')
             if isinstance(embedding, list):
                 return embedding[0]
