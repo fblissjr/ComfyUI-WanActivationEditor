@@ -121,6 +121,7 @@ class WanVideoActivationEditor:
             debug_print(f"Injection prompt: {injection_embeds.get('prompt', 'N/A')[:50]}...")
         
         # Measure embedding difference
+        embedding_diff_percent = -1  # Default if comparison not possible
         if text_embeds is not None and injection_embeds is not None:
             if 'prompt_embeds' in text_embeds and 'prompt_embeds' in injection_embeds:
                 main_embeds = text_embeds['prompt_embeds']
@@ -135,44 +136,69 @@ class WanVideoActivationEditor:
                 if torch.is_tensor(main_embeds) and torch.is_tensor(inj_embeds):
                     debug_print(f"Comparing embeddings - Main shape: {main_embeds.shape}, Injection shape: {inj_embeds.shape}")
                     
-                    # Check if they're the same tensor object
-                    if main_embeds is inj_embeds:
-                        debug_print("WARNING: Main and injection embeddings are the SAME tensor object!")
-                    
-                    # Check if they have identical values
-                    if torch.equal(main_embeds, inj_embeds):
-                        debug_print("WARNING: Main and injection embeddings have IDENTICAL values!")
-                    
-                    # Ensure same device for comparison
-                    if main_embeds.device != inj_embeds.device:
-                        inj_embeds = inj_embeds.to(main_embeds.device)
-                    
-                    # Align shapes if different
-                    if main_embeds.shape[0] != inj_embeds.shape[0]:
-                        max_len = max(main_embeds.shape[0], inj_embeds.shape[0])
+                    # Handle different embedding types (raw vs projected)
+                    if main_embeds.shape[-1] != inj_embeds.shape[-1]:
+                        # Different dimensions - likely raw (4096) vs projected (5120)
+                        debug_print(f"Different embedding dimensions: {main_embeds.shape[-1]} vs {inj_embeds.shape[-1]}")
+                        if main_embeds.shape[-1] == 4096 and inj_embeds.shape[-1] == 5120:
+                            debug_print("Main embeddings are raw T5 (4096), injection are projected (5120)")
+                            debug_print("Cannot directly compare - skipping embedding difference calculation")
+                            embedding_diff_percent = -1
+                        elif main_embeds.shape[-1] == 5120 and inj_embeds.shape[-1] == 4096:
+                            debug_print("Main embeddings are projected (5120), injection are raw T5 (4096)")
+                            debug_print("Cannot directly compare - skipping embedding difference calculation")
+                            embedding_diff_percent = -1
+                        else:
+                            debug_print("Unknown dimension mismatch - skipping comparison")
+                            embedding_diff_percent = -1
+                    else:
+                        # Same dimensions - can compare
+                        # Ensure same device for comparison FIRST
+                        if main_embeds.device != inj_embeds.device:
+                            inj_embeds = inj_embeds.to(main_embeds.device)
                         
-                        # Pad the shorter one
-                        if main_embeds.shape[0] < max_len:
-                            pad_size = max_len - main_embeds.shape[0]
-                            main_embeds = torch.nn.functional.pad(main_embeds, (0, 0, 0, pad_size))
-                        if inj_embeds.shape[0] < max_len:
-                            pad_size = max_len - inj_embeds.shape[0]
-                            inj_embeds = torch.nn.functional.pad(inj_embeds, (0, 0, 0, pad_size))
+                        # Check if they're the same tensor object
+                        if main_embeds is inj_embeds:
+                            debug_print("WARNING: Main and injection embeddings are the SAME tensor object!")
+                        
+                        # For 3D tensors, extract the batch dimension
+                        if main_embeds.dim() == 3 and main_embeds.shape[0] == 1:
+                            main_embeds = main_embeds.squeeze(0)
+                        if inj_embeds.dim() == 3 and inj_embeds.shape[0] == 1:
+                            inj_embeds = inj_embeds.squeeze(0)
+                        
+                        # Check if they have identical values (only if same shape)
+                        if main_embeds.shape == inj_embeds.shape:
+                            if torch.equal(main_embeds, inj_embeds):
+                                debug_print("WARNING: Main and injection embeddings have IDENTICAL values!")
+                        
+                        # Align shapes if different sequence lengths
+                        if main_embeds.shape[0] != inj_embeds.shape[0]:
+                            max_len = max(main_embeds.shape[0], inj_embeds.shape[0])
+                            
+                            # Pad the shorter one
+                            if main_embeds.shape[0] < max_len:
+                                pad_size = max_len - main_embeds.shape[0]
+                                main_embeds = torch.nn.functional.pad(main_embeds, (0, 0, 0, pad_size))
+                            if inj_embeds.shape[0] < max_len:
+                                pad_size = max_len - inj_embeds.shape[0]
+                                inj_embeds = torch.nn.functional.pad(inj_embeds, (0, 0, 0, pad_size))
+                        
+                        # Calculate embedding difference
+                        diff = (main_embeds - inj_embeds).abs()
+                        diff_percent = (diff > 0.01).float().mean().item() * 100
+                        embedding_diff_percent = diff_percent
                     
-                    # Calculate embedding difference
-                    diff = (main_embeds - inj_embeds).abs()
-                    diff_percent = (diff > 0.01).float().mean().item() * 100
-                    
-                    if log_level != "off":
-                        print(f"\n📊 Embedding difference: {diff_percent:.1f}%")
+                    if log_level != "off" and embedding_diff_percent >= 0:
+                        print(f"\n📊 Embedding difference: {embedding_diff_percent:.1f}%")
                     
                     # Warn if difference is too low
-                    if diff_percent < 30:
+                    if embedding_diff_percent >= 0 and embedding_diff_percent < 30:
                         if log_level != "off":
-                            print(f"⚠️  WARNING: Low embedding difference detected ({diff_percent:.1f}%)")
+                            print(f"⚠️  WARNING: Low embedding difference detected ({embedding_diff_percent:.1f}%)")
                             print("  Your prompts are too similar for effective injection.")
                             print("  For visible effects, aim for >50% difference between prompts.")
-                        debug_print(f"Low embedding difference: {diff_percent:.1f}%")
+                        debug_print(f"Low embedding difference: {embedding_diff_percent:.1f}%")
         
         # Parse block activations
         try:
